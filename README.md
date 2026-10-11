@@ -46,6 +46,15 @@ VS Code pytest discovery is configured for the `tests` directory in `.vscode/set
 
 `tests/test_employee_crud_lifecycle.py` uses the existing credentials fixture and `LoginPage` flow. It creates a uniquely identified employee through the PIM UI, leaves the photo untouched, and keeps Create Login Details disabled. It verifies the Employee Id and names in MariaDB, updates the names with the employee personal-details API while preserving the Employee Id, then verifies the updated values in MariaDB and the Employee List row. It deletes the employee through the UI confirmation flow and verifies absence through the employee-list API and MariaDB. Failure-path cleanup targets only the generated Employee Id and checks uniqueness and the internal employee number when available; the database connection is closed in all cases.
 
+## Project structure
+
+- `conftest.py` loads `.env` and provides shared authentication and database settings fixtures.
+- `orangehrm/config.py` contains application URLs and database environment-setting names.
+- `orangehrm/pages/` contains the login and PIM employee page objects.
+- `orangehrm/api/employees.py` contains employee API request and response helpers.
+- `orangehrm/database.py` opens MariaDB connections and provides read-only employee lookups.
+- `tests/` contains the login and CRUD lifecycle workflows and their assertions.
+
 ## Unverified setup details and limitations
 
 - The project does not declare a Python support range or pin dependencies in a requirements/lock file.

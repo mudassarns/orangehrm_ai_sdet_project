@@ -1,23 +1,17 @@
-import os
 import warnings
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import urlsplit
 from uuid import uuid4
 
-import mariadb
 from playwright.sync_api import expect
 
-from test_login import LoginPage, credentials
+from orangehrm.api.employees import EmployeeApi
+from orangehrm.config import DASHBOARD_URL
+from orangehrm.database import EmployeeRepository, connect_database
+from orangehrm.pages.employee_page import EmployeePage
+from orangehrm.pages.login_page import LoginPage
 
 
-BASE_URL = "http://localhost:8080/web/index.php"
-EMPLOYEES_API_URL = f"{BASE_URL}/api/v2/pim/employees"
-
-
-def test_employee_crud_lifecycle(page, credentials):
-    db_settings = {
-        name: os.getenv(name)
-        for name in ("DB_HOST", "DB_PORT", "DB_NAME", "DB_USER", "DB_PASSWORD")
-    }
+def test_employee_crud_lifecycle(page, credentials, db_settings):
     missing_settings = [name for name, value in db_settings.items() if not value]
     assert not missing_settings, (
         "Database settings missing from the project environment: "
@@ -26,13 +20,10 @@ def test_employee_crud_lifecycle(page, credentials):
     db_port = db_settings["DB_PORT"]
     assert db_port is not None
 
-    connection = mariadb.connect(
-        host=db_settings["DB_HOST"],
-        port=int(db_port),
-        database=db_settings["DB_NAME"],
-        user=db_settings["DB_USER"],
-        password=db_settings["DB_PASSWORD"],
-    )
+    connection = connect_database(db_settings)
+    employee_repository = EmployeeRepository(connection)
+    employee_page = EmployeePage(page)
+    employee_api = EmployeeApi(page.context.request)
 
     suffix = uuid4().hex[:7].upper()
     first_name = f"QA{suffix}"
@@ -47,85 +38,38 @@ def test_employee_crud_lifecycle(page, credentials):
     test_exception = None
 
     def read_employee():
-        cursor = connection.cursor()
-        cursor.execute("START TRANSACTION READ ONLY")
-        try:
-            cursor.execute(
-                """
-                SELECT emp_number, employee_id, emp_firstname,
-                       emp_middle_name, emp_lastname
-                FROM hs_hr_employee
-                WHERE employee_id = ?
-                """,
-                (employee_id,),
-            )
-            return cursor.fetchall()
-        finally:
-            connection.rollback()
+        return employee_repository.find_by_employee_id(employee_id)
 
     def search_employee_in_ui_and_api():
-        page.get_by_role("link", name="PIM").click()
-        page.get_by_role("link", name="Employee List").click()
-        expect(page.get_by_role("heading", name="Employee Information")).to_be_visible()
-
-        employee_id_group = page.locator(".oxd-input-group").filter(
-            has_text="Employee Id"
-        )
-        employee_id_group.locator("input").fill(employee_id)
-
-        def is_employee_search(response):
-            parsed_url = urlsplit(response.url)
-            return (
-                response.request.method == "GET"
-                and parsed_url.path.endswith("/api/v2/pim/employees")
-                and parse_qs(parsed_url.query).get("employeeId") == [employee_id]
+        with page.expect_response(
+            lambda response: employee_api.is_employee_search(
+                response, employee_id
             )
-
-        with page.expect_response(is_employee_search) as response_info:
-            page.get_by_role("button", name="Search").click()
+        ) as response_info:
+            employee_page.search_by_employee_id(employee_id)
 
         response = response_info.value
         assert response.status == 200
-        data = response.json().get("data")
-        assert isinstance(data, list)
-        matches = [
-            employee for employee in data
-            if employee.get("employeeId") == employee_id
-        ]
-        return matches, page.locator(
-            ".oxd-table-body .oxd-table-row"
-        ).filter(has_text=employee_id)
+        matches = employee_api.matching_employee_id(response, employee_id)
+        assert isinstance(matches, list)
+        return matches, employee_page.row_by_employee_id(employee_id)
 
     def delete_employee_from_ui(row):
-        expect(row).to_have_count(1)
-        row.locator("span.oxd-checkbox-input").click()
-        delete_button = page.locator("button.oxd-button--label-danger")
-        expect(delete_button).to_be_visible()
-        delete_button.click()
-
-        confirmation = page.get_by_role("dialog")
-        expect(confirmation).to_be_visible()
-        confirmation.get_by_role("button", name="Yes, Delete").click()
-        expect(page.get_by_text("Successfully Deleted")).to_be_visible()
+        employee_page.delete_employee(row)
 
     try:
         login = LoginPage(page)
         login.open()
         login.login(credentials["username"], credentials["password"])
-        login.assert_dashboard_visible()
+        page.wait_for_url("**/dashboard/**", timeout=10000)
+        assert page.url.startswith(DASHBOARD_URL.rsplit("/", 1)[0])
+        expect(page.get_by_role("heading", name="Dashboard")).to_be_visible()
 
-        page.get_by_role("link", name="PIM").click()
-        page.get_by_role("link", name="Add Employee").click()
-        page.get_by_placeholder("First Name").fill(first_name)
-        page.get_by_placeholder("Middle Name").fill(middle_name)
-        page.get_by_placeholder("Last Name").fill(last_name)
-        employee_id_group = page.locator(".oxd-input-group").filter(
-            has_text="Employee Id"
+        employee_page.open_add_employee()
+        employee_page.fill_new_employee(
+            first_name, middle_name, last_name, employee_id
         )
-        employee_id_group.locator("input").fill(employee_id)
-        create_login_checkbox = page.get_by_text("Create Login Details").locator(
-            ".."
-        ).locator('input[type="checkbox"]')
+        create_login_checkbox = employee_page.create_login_details_checkbox()
         expect(create_login_checkbox).not_to_be_checked()
 
         create_submitted = True
@@ -133,7 +77,7 @@ def test_employee_crud_lifecycle(page, credentials):
             lambda response: response.request.method == "POST"
             and urlsplit(response.url).path.endswith("/api/v2/pim/employees")
         ) as create_response_info:
-            page.get_by_role("button", name="Save").click()
+            employee_page.save_employee()
 
         create_response = create_response_info.value
         assert create_response.status == 200
@@ -158,9 +102,9 @@ def test_employee_crud_lifecycle(page, credentials):
             "lastName": updated_last_name,
             "employeeId": employee_id,
         }
-        update_response = page.context.request.put(
-            f"{EMPLOYEES_API_URL}/{emp_number}/personal-details",
-            data=update_payload,
+        update_response = employee_api.update_personal_details(
+            emp_number,
+            update_payload,
         )
         assert update_response.status == 200
         updated_employee = update_response.json()["data"]
