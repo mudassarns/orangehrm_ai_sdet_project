@@ -51,6 +51,11 @@ jobs:
           ORANGEHRM_USERNAME: ${{ secrets.ORANGEHRM_USERNAME }}
           ORANGEHRM_PASSWORD: ${{ secrets.ORANGEHRM_PASSWORD }}
 
+      - name: Install MariaDB build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libmariadb-dev build-essential
+
       - name: Install Python dependencies
         run: python -m pip install -r requirements.txt
 
