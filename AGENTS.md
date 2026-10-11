@@ -32,16 +32,18 @@ Do not use `browser_run_code_unsafe` for browser interaction or credential entry
 
 ### Playwright MCP credentials
 
-The Playwright MCP server is configured with external secrets.
+The Playwright MCP server is configured with an external secrets file for redaction. This does not make the values available to Python and does not substitute secret names in browser text input.
 
-For OrangeHRM browser exploration, use these configured secret names through the Playwright MCP input tools:
+The configured secret names are:
 
 - `ORANGEHRM_USERNAME`
 - `ORANGEHRM_PASSWORD`
 
-For credential entry, use the Playwright MCP **Type text** tool (`browser_type`) directly so the MCP secret-resolution mechanism resolves the configured values.
+Do not enter either secret name, or a `<secret>...</secret>` placeholder, into a browser field expecting substitution. `browser_type` treats these as literal text.
 
-Do not type `<secret>...</secret>` literally as ordinary browser input.
+For authenticated local OrangeHRM exploration, use the existing project Python credentials fixture and `LoginPage` flow in `tests/test_login.py`, using the project `.venv`. This is the required login path for both tests and exploratory browser work; do not ask the user to log in manually. For exploration outside an existing test, use a transient Python Playwright session that loads the existing fixture and calls `LoginPage`; do not create or modify project files for that purpose. Do not print, log, or otherwise expose the fixture values. MCP browser sessions do not share authentication state with the Python Playwright session.
+
+If the existing Python fixture cannot authenticate, report the observed failure and stop; do not try alternate credential sources or repeatedly retry login.
 
 Never expose resolved credential values in responses, logs, screenshots, reports, or generated files.
 
