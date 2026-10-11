@@ -9,7 +9,14 @@ Python UI/API/database tests for the local OrangeHRM application. The project us
 - A local OrangeHRM application at `http://localhost:8080` and an accessible MariaDB database are required for the CRUD lifecycle test.
 - The root `conftest.py` loads `.env` using `python-dotenv`. Set the required environment variable names below in the root `.env`; `.gitignore` excludes that file. Do not commit or share credentials.
 
-Dependency installation instructions, a dependency lock/manifest, and commands to provision or start OrangeHRM and MariaDB are not present in the verified project configuration.
+Install the pinned Python dependencies and the Playwright Chromium browser from the project root in PowerShell:
+
+```powershell
+& '.\.venv\Scripts\python.exe' -m pip install -r requirements.txt
+& '.\.venv\Scripts\python.exe' -m playwright install chromium
+```
+
+Commands to provision or start OrangeHRM and MariaDB are not present in the verified project configuration.
 
 ## Environment variables
 
@@ -57,6 +64,6 @@ VS Code pytest discovery is configured for the `tests` directory in `.vscode/set
 
 ## Unverified setup details and limitations
 
-- The project does not declare a Python support range or pin dependencies in a requirements/lock file.
+- The project does not declare a Python support range; dependency versions are pinned in `requirements.txt`.
 - The exact steps to install dependencies and provision/start the local OrangeHRM and MariaDB services are not documented in the verified configuration.
 - CI configuration or CI availability has not been established.
