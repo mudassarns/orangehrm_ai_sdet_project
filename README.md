@@ -49,6 +49,15 @@ Run only the employee CRUD lifecycle test:
 
 VS Code pytest discovery is configured for the `tests` directory in `.vscode/settings.json`.
 
+GitHub Actions runs the suite on pushes to `dev` and pull requests targeting `dev`. The workflow starts a fresh Docker Compose stack, initializes OrangeHRM with its bundled CLI installer, and runs the tests. Configure these repository secrets:
+
+- `DB_NAME`
+- `DB_PASSWORD`
+- `ORANGEHRM_USERNAME`
+- `ORANGEHRM_PASSWORD`
+
+The workflow maps the OrangeHRM credentials to `ORANGEHRM_USERNAME` and `ORANGEHRM_PASSWORD`, and maps MariaDB connection settings to the `DB_*` variables consumed by the tests.
+
 ## Employee CRUD lifecycle test
 
 `tests/test_employee_crud_lifecycle.py` uses the existing credentials fixture and `LoginPage` flow. It creates a uniquely identified employee through the PIM UI, leaves the photo untouched, and keeps Create Login Details disabled. It verifies the Employee Id and names in MariaDB, updates the names with the employee personal-details API while preserving the Employee Id, then verifies the updated values in MariaDB and the Employee List row. It deletes the employee through the UI confirmation flow and verifies absence through the employee-list API and MariaDB. Failure-path cleanup targets only the generated Employee Id and checks uniqueness and the internal employee number when available; the database connection is closed in all cases.
@@ -66,4 +75,4 @@ VS Code pytest discovery is configured for the `tests` directory in `.vscode/set
 
 - The project does not declare a Python support range; dependency versions are pinned in `requirements.txt`.
 - The exact steps to install dependencies and provision/start the local OrangeHRM and MariaDB services are not documented in the verified configuration.
-- CI configuration or CI availability has not been established.
+- A successful GitHub Actions run still needs to verify the workflow in the target repository with the required secrets configured.

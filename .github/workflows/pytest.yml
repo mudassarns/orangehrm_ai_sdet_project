@@ -1,0 +1,169 @@
+name: OrangeHRM pytest
+
+on:
+  push:
+    branches:
+      - dev
+  pull_request:
+    branches:
+      - dev
+
+permissions:
+  contents: read
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    env:
+      MARIADB_ROOT_PASSWORD: ${{ secrets.DB_PASSWORD }}
+      MARIADB_DATABASE: ""
+      MARIADB_USER: orangehrm
+      MARIADB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+      ORANGEHRM_USERNAME: ${{ secrets.ORANGEHRM_USERNAME }}
+      ORANGEHRM_PASSWORD: ${{ secrets.ORANGEHRM_PASSWORD }}
+      DB_HOST: 127.0.0.1
+      DB_PORT: "3306"
+      DB_NAME: ${{ secrets.DB_NAME }}
+      DB_USER: root
+      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Validate required secrets
+        shell: bash
+        run: |
+          for name in DB_NAME DB_PASSWORD ORANGEHRM_USERNAME ORANGEHRM_PASSWORD; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Required GitHub secret ${name} is not configured."
+              exit 1
+            fi
+          done
+        env:
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          ORANGEHRM_USERNAME: ${{ secrets.ORANGEHRM_USERNAME }}
+          ORANGEHRM_PASSWORD: ${{ secrets.ORANGEHRM_PASSWORD }}
+
+      - name: Install Python dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Install Playwright Chromium and system dependencies
+        run: python -m playwright install --with-deps chromium
+
+      - name: Start and initialize Docker stack
+        env:
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          ORANGEHRM_USERNAME: ${{ secrets.ORANGEHRM_USERNAME }}
+          ORANGEHRM_PASSWORD: ${{ secrets.ORANGEHRM_PASSWORD }}
+        shell: bash
+        run: |
+          compose_file=docker-orangehrm/docker-compose.yml
+          deadline=$((SECONDS + 300))
+          if ! docker compose -f "$compose_file" up -d; then
+            docker compose -f "$compose_file" logs --no-color
+            exit 1
+          fi
+
+          while true; do
+            mariadb_id="$(docker compose -f "$compose_file" ps -q mariadb)"
+            orangehrm_id="$(docker compose -f "$compose_file" ps -q orangehrm)"
+            mariadb_status=""
+            orangehrm_status=""
+            if [[ -n "$mariadb_id" ]]; then
+              mariadb_status="$(docker inspect --format '{{.State.Health.Status}}' "$mariadb_id" 2>/dev/null || true)"
+            fi
+            if [[ -n "$orangehrm_id" ]]; then
+              orangehrm_status="$(docker inspect --format '{{.State.Status}}' "$orangehrm_id" 2>/dev/null || true)"
+            fi
+            if [[ "$mariadb_status" == "healthy" && "$orangehrm_status" == "running" ]]; then
+              break
+            fi
+            if (( SECONDS >= deadline )); then
+              echo "::error::MariaDB and OrangeHRM did not become ready within five minutes."
+              docker compose -f "$compose_file" logs --no-color
+              exit 1
+            fi
+            sleep 5
+          done
+
+          remaining=$((deadline - SECONDS))
+          if (( remaining <= 0 )) || ! timeout "$remaining" docker compose -f "$compose_file" exec -T \
+            -e CI_DB_HOST=mariadb \
+            -e CI_DB_PORT=3306 \
+            -e CI_DB_NAME="$DB_NAME" \
+            -e CI_DB_PASSWORD="$DB_PASSWORD" \
+            -e CI_ADMIN_USERNAME="$ORANGEHRM_USERNAME" \
+            -e CI_ADMIN_PASSWORD="$ORANGEHRM_PASSWORD" \
+            orangehrm php -r '
+              require "/var/www/html/src/vendor/autoload.php";
+              $config = [
+                "database" => [
+                  "hostName" => getenv("CI_DB_HOST"),
+                  "hostPort" => (int) getenv("CI_DB_PORT"),
+                  "databaseName" => getenv("CI_DB_NAME"),
+                  "privilegedDatabaseUser" => "root",
+                  "privilegedDatabasePassword" => getenv("CI_DB_PASSWORD"),
+                  "useSameDbUserForOrangeHRM" => "y",
+                  "orangehrmDatabaseUser" => null,
+                  "orangehrmDatabasePassword" => null,
+                  "isExistingDatabase" => "n",
+                  "enableDataEncryption" => "n"
+                ],
+                "organization" => [
+                  "name" => "Automation CI",
+                  "country" => "US"
+                ],
+                "admin" => [
+                  "adminUserName" => getenv("CI_ADMIN_USERNAME"),
+                  "adminPassword" => getenv("CI_ADMIN_PASSWORD"),
+                  "adminEmployeeFirstName" => "Automation",
+                  "adminEmployeeLastName" => "Admin",
+                  "workEmail" => "automation@example.com",
+                  "contactNumber" => null,
+                  "registrationConsent" => false
+                ],
+                "license" => ["agree" => "y"]
+              ];
+              file_put_contents(
+                "/var/www/html/installer/cli_install_config.yaml",
+                Symfony\Component\Yaml\Yaml::dump($config, 4, 2)
+              );
+            '; then
+            echo "::error::Could not prepare the OrangeHRM installer configuration."
+            docker compose -f "$compose_file" logs --no-color
+            exit 1
+          fi
+
+          remaining=$((deadline - SECONDS))
+          if (( remaining <= 0 )) || ! timeout "$remaining" docker compose -f "$compose_file" exec -T \
+            orangehrm php /var/www/html/installer/cli_install.php; then
+            echo "::error::OrangeHRM CLI installation failed or exceeded the readiness limit."
+            docker compose -f "$compose_file" logs --no-color
+            exit 1
+          fi
+
+          until curl --fail --silent --show-error --max-time 5 \
+            http://localhost:8080/web/index.php/auth/login \
+            --output /dev/null; do
+            if (( SECONDS >= deadline )); then
+              echo "::error::OrangeHRM did not become HTTP-ready within five minutes."
+              docker compose -f "$compose_file" logs --no-color
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: Run pytest suite
+        run: python -m pytest tests -q
+
+      - name: Stop Docker stack
+        if: always()
+        run: docker compose -f docker-orangehrm/docker-compose.yml down --volumes
