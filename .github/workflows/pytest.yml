@@ -1,4 +1,4 @@
-name: OrangeHRM pytest
+name: OrangeHRM AI SDET Project CI
 
 on:
   push:
