@@ -2,13 +2,19 @@ import warnings
 from urllib.parse import urlsplit
 from uuid import uuid4
 
+import pytest
 from playwright.sync_api import expect
 
 from orangehrm.api.employees import EmployeeApi
-from orangehrm.config import DASHBOARD_URL
+from orangehrm.config import DASHBOARD_URL, database_settings_from_environment
 from orangehrm.database import EmployeeRepository, connect_database
 from orangehrm.pages.employee_page import EmployeePage
 from orangehrm.pages.login_page import LoginPage
+
+
+@pytest.fixture
+def db_settings():
+    return database_settings_from_environment()
 
 
 def test_employee_crud_lifecycle(page, credentials, db_settings):
@@ -17,9 +23,6 @@ def test_employee_crud_lifecycle(page, credentials, db_settings):
         "Database settings missing from the project environment: "
         + ", ".join(missing_settings)
     )
-    db_port = db_settings["DB_PORT"]
-    assert db_port is not None
-
     connection = connect_database(db_settings)
     employee_repository = EmployeeRepository(connection)
     employee_page = EmployeePage(page)
@@ -53,9 +56,6 @@ def test_employee_crud_lifecycle(page, credentials, db_settings):
         matches = employee_api.matching_employee_id(response, employee_id)
         assert isinstance(matches, list)
         return matches, employee_page.row_by_employee_id(employee_id)
-
-    def delete_employee_from_ui(row):
-        employee_page.delete_employee(row)
 
     try:
         login = LoginPage(page)
@@ -132,7 +132,7 @@ def test_employee_crud_lifecycle(page, credentials, db_settings):
             f"{updated_first_name} {updated_middle_name}"
         )
         expect(employee_cells.nth(3)).to_have_text(updated_last_name)
-        delete_employee_from_ui(employee_row)
+        employee_page.delete_employee(employee_row)
 
         absent_employees, absent_row = search_employee_in_ui_and_api()
         assert absent_employees == []
@@ -170,7 +170,7 @@ def test_employee_crud_lifecycle(page, credentials, db_settings):
                     )
                     assert len(matching_employees) == 1
                     assert matching_employees[0]["empNumber"] == database_emp_number
-                    delete_employee_from_ui(employee_row)
+                    employee_page.delete_employee(employee_row)
                 else:
                     matching_employees, employee_row = (
                         search_employee_in_ui_and_api()

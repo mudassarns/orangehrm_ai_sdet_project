@@ -24,8 +24,8 @@ class EmployeeRepository:
 
     def find_by_employee_id(self, employee_id):
         cursor = self.connection.cursor()
-        cursor.execute("START TRANSACTION READ ONLY")
         try:
+            cursor.execute("START TRANSACTION READ ONLY")
             cursor.execute(
                 """
                 SELECT emp_number, employee_id, emp_firstname,
@@ -37,4 +37,7 @@ class EmployeeRepository:
             )
             return cursor.fetchall()
         finally:
-            self.connection.rollback()
+            try:
+                cursor.close()
+            finally:
+                self.connection.rollback()

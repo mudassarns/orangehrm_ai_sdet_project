@@ -3,8 +3,6 @@ import os
 import pytest
 from dotenv import load_dotenv
 
-from orangehrm.config import database_settings_from_environment
-
 load_dotenv()
 
 
@@ -18,8 +16,3 @@ def credentials():
             "for valid login tests."
         )
     return {"username": username, "password": password}
-
-
-@pytest.fixture
-def db_settings():
-    return database_settings_from_environment()
