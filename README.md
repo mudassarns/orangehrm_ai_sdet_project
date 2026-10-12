@@ -16,7 +16,106 @@ Install the pinned Python dependencies and the Playwright Chromium browser from 
 & '.\.venv\Scripts\python.exe' -m playwright install chromium
 ```
 
-Commands to provision or start OrangeHRM and MariaDB are not present in the verified project configuration.
+## Docker commands
+
+Run these commands from the project root:
+
+`D:\Automation\orangehrm_ai_sdet_project`
+
+The Docker Compose file is located at `docker-orangehrm/docker-compose.yml`.
+
+### Start OrangeHRM and MariaDB
+
+Use the established startup command:
+
+```powershell
+docker compose --env-file .env -f docker-orangehrm/docker-compose.yml up -d
+```
+
+To wait for services to reach a running or healthy state before the command returns:
+
+```powershell
+docker compose --env-file .env -f docker-orangehrm/docker-compose.yml up -d --wait
+```
+
+Open OrangeHRM in your browser:
+
+http://localhost:8080
+
+### Check container status
+
+```powershell
+docker compose --env-file .env -f docker-orangehrm/docker-compose.yml ps
+```
+
+Include stopped containers in the status output:
+
+```powershell
+docker compose --env-file .env -f docker-orangehrm/docker-compose.yml ps -a
+```
+
+### View logs
+
+View logs from both services:
+
+```powershell
+docker compose --env-file .env -f docker-orangehrm/docker-compose.yml logs
+```
+
+View OrangeHRM logs:
+
+```powershell
+docker compose --env-file .env -f docker-orangehrm/docker-compose.yml logs orangehrm
+```
+
+View MariaDB logs:
+
+```powershell
+docker compose --env-file .env -f docker-orangehrm/docker-compose.yml logs mariadb
+```
+
+Follow logs continuously by adding `-f`, for example:
+
+```powershell
+docker compose --env-file .env -f docker-orangehrm/docker-compose.yml logs -f orangehrm
+```
+
+Press `Ctrl+C` to stop following logs. This does not stop the containers.
+
+### Stop and restart the services
+
+Stop the running services without removing their containers:
+
+```powershell
+docker compose --env-file .env -f docker-orangehrm/docker-compose.yml stop
+```
+
+Start the existing stopped containers:
+
+```powershell
+docker compose --env-file .env -f docker-orangehrm/docker-compose.yml start
+```
+
+Restart OrangeHRM only:
+
+```powershell
+docker compose --env-file .env -f docker-orangehrm/docker-compose.yml restart orangehrm
+```
+
+Restart MariaDB only:
+
+```powershell
+docker compose --env-file .env -f docker-orangehrm/docker-compose.yml restart mariadb
+```
+
+### Important data and configuration precautions
+
+- Docker volumes preserve data independently of a normal laptop reboot or container stop.
+- The MariaDB database uses the named volume `mariadb_data`.
+- The OrangeHRM application currently has configuration stored in an anonymous volume. Its `Conf.php` configuration was restored into the existing application volume.
+- The established `up -d` command works for starting the existing stack. If Compose proposes to recreate the OrangeHRM container, inspect the container and volume configuration first.
+- Do **not** run `docker compose down -v`, manually delete volumes, or remove the existing OrangeHRM container without first securing the application configuration and database data.
+- Keep `.env` private. Never commit or share its credentials.
 
 ## Environment variables
 
@@ -74,5 +173,4 @@ The workflow maps the OrangeHRM credentials to `ORANGEHRM_USERNAME` and `ORANGEH
 ## Unverified setup details and limitations
 
 - The project does not declare a Python support range; dependency versions are pinned in `requirements.txt`.
-- The exact steps to install dependencies and provision/start the local OrangeHRM and MariaDB services are not documented in the verified configuration.
 - A successful GitHub Actions run still needs to verify the workflow in the target repository with the required secrets configured.
