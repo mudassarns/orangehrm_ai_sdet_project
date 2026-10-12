@@ -1,4 +1,5 @@
 import os
+from uuid import uuid4
 
 import pytest
 from dotenv import load_dotenv
@@ -16,3 +17,10 @@ def credentials():
             "for valid login tests."
         )
     return {"username": username, "password": password}
+
+
+@pytest.fixture
+def unique_employee_id():
+    employee_id = f"UI{uuid4().hex[:8].upper()}"
+    assert len(employee_id) <= 10
+    return employee_id

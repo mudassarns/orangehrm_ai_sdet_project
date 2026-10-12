@@ -1,18 +1,9 @@
-from uuid import uuid4
-
 import pytest
 from playwright.sync_api import expect
 
 from orangehrm.config import DASHBOARD_URL
 from orangehrm.pages.employee_page import EmployeePage
 from orangehrm.pages.login_page import LoginPage
-
-
-@pytest.fixture
-def unique_employee_id():
-    employee_id = f"UI{uuid4().hex[:8].upper()}"
-    assert len(employee_id) <= 10
-    return employee_id
 
 
 @pytest.fixture
