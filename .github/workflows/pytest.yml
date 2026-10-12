@@ -169,6 +169,17 @@ jobs:
       - name: Run pytest suite
         run: python -m pytest tests -q
 
+      - name: Upload test reports and failure diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-reports-and-failure-diagnostics
+          path: |
+            reports/
+            test-results/
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Stop Docker stack
         if: always()
         run: docker compose -f docker-orangehrm/docker-compose.yml down --volumes

@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -6,6 +7,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
+def pytest_sessionstart(session):
+    Path("reports").mkdir(exist_ok=True)
+    Path("test-results").mkdir(exist_ok=True)
+
+@pytest.hookimpl(trylast=True)
+def pytest_sessionfinish(session, exitstatus):
+    Path("test-results").mkdir(parents=True, exist_ok=True)
 
 @pytest.fixture(scope="session")
 def credentials():
