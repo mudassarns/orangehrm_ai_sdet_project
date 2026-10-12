@@ -71,11 +71,17 @@ class EmployeePage:
 
     def delete_employee(self, row: Locator) -> None:
         expect(row).to_have_count(1)
-        row.locator("span.oxd-checkbox-input").click()
-        delete_button = self.page.locator("button.oxd-button--label-danger")
-        expect(delete_button).to_be_visible()
+
+        delete_button = row.locator("button").filter(
+            has=self.page.locator("i.bi-trash")
+        )
+        expect(delete_button).to_have_count(1)
         delete_button.click()
+
         confirmation = self.page.get_by_role("dialog")
         expect(confirmation).to_be_visible()
         confirmation.get_by_role("button", name="Yes, Delete").click()
-        expect(self.page.get_by_text("Successfully Deleted")).to_be_visible()
+
+        expect(
+            self.page.get_by_text("Successfully Deleted")
+        ).to_be_visible()
