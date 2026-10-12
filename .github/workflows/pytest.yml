@@ -167,7 +167,7 @@ jobs:
           done
 
       - name: Run pytest suite
-        run: python -m pytest tests -q
+        run: python -m pytest tests -v
 
       - name: Upload test reports and failure diagnostics
         if: always()
