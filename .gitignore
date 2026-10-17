@@ -1,10 +1,36 @@
+# Python and virtual environments
 .venv/
+venv/
+env/
 __pycache__/
-.pytest_cache/
+*.py[cod]
+*.pyo
 
+# Local environment files (allow the safe template)
 .env
+.env.*
+!.env.example
 
+# OAuth credentials, tokens, and private keys
+gmail_oauth_client.json
+gmail_token*.json
+client_secret*.json
+credentials.json
+token.json
+*.pem
+*.key
+
+# Playwright MCP local state
 .playwright-mcp/
 
+# Pytest reports and failure diagnostics
+.pytest_cache/
 reports/
 test-results/
+
+# Coverage
+.coverage
+htmlcov/
+
+# Logs and local artifacts
+*.log
