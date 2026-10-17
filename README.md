@@ -14,6 +14,12 @@ An employee-focused automation project using **Python, pytest, Playwright, and M
 - Automatic HTML and JUnit reporting, failure screenshots, and retained Playwright traces.
 - Docker Compose setup and GitHub Actions execution.
 
+## AI-Assisted Browser Investigation with Playwright MCP
+
+- Configured the Microsoft Playwright MCP server for browser exploration through VS Code Copilot, supporting exploratory investigation and locator discovery and debugging.
+- Used MCP as an exploratory aid alongside deterministic Playwright and pytest automation, keeping repeatable regression tests as the foundation for CI execution.
+- Kept MCP configuration and credential-handling mechanisms separate from the Python test framework; standard pytest execution does not depend on MCP.
+
 ## Technology stack
 
 | Component | Purpose |
